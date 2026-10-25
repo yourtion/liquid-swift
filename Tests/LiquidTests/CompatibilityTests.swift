@@ -54,6 +54,8 @@ final class CompatibilityTests: XCTestCase {
         XCTAssertEqual(try Template("before{% break %}after").render(), "before")
         XCTAssertEqual(try Template("{% if 5 > true %}bad{% else %}ok{% endif %}").render(), "ok")
         XCTAssertThrowsError(try Template("{% if 5 > 'text' %}{% endif %}").render())
+        let contains = "{% if '123' contains 2 %}a{% endif %}{% if 'abc' contains '' %}b{% endif %}{% if xs contains false %}bad{% endif %}{% assign r = (1..3) %}{% if r contains 2 %}c{% endif %}{% if '' contains '' %}d{% endif %}"
+        XCTAssertEqual(try Template(contains).render(["xs": [false]]), "abcd")
     }
 
     func testReferenceFilterCoercionAndOptionalForms() throws {

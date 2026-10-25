@@ -81,7 +81,13 @@ jobs:
           ruby-version: '3.3'
           bundler: '2.6.7'
       - name: Install official compatibility harness dependencies
-        run: BUNDLE_GEMFILE=Compatibility/Gemfile BUNDLE_PATH=.build/compatibility-gems BUNDLE_FROZEN=true bundle install
+        run: |
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          export PATH="$(dirname "$(xcrun --find clang)"):$PATH"
+          if ! BUNDLE_GEMFILE=Compatibility/Gemfile BUNDLE_PATH=.build/compatibility-gems BUNDLE_FROZEN=true bundle install; then
+            find Compatibility/.build/compatibility-gems -name mkmf.log -exec tail -n 80 {} \;
+            exit 1
+          fi
       - name: Run official Liquid compatibility regression gate
         env:
           BUNDLE_PATH: .build/compatibility-gems

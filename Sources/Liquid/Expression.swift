@@ -70,9 +70,16 @@ indirect enum Condition {
             case "==": return lhs.equals(rhs)
             case "!=": return !lhs.equals(rhs)
             case "contains":
-                if rhs == .null || lhs == .null { return false }
-                if case .string(let text) = lhs, case .string(let needle) = rhs { return text.contains(needle) }
+                if !rhs.truthy || !lhs.truthy { return false }
+                if case .string(let text) = lhs {
+                    let needle = rhs.filterText
+                    return needle.isEmpty || text.contains(needle)
+                }
+                if rhs == .empty || rhs == .blank { return false }
                 if case .array(let values) = lhs { return values.contains { $0.equals(rhs) } }
+                if case .range(let first, let last) = lhs, rhs.isNumeric {
+                    return rhs.numeric >= Double(first) && rhs.numeric <= Double(last)
+                }
                 return false
             default:
                 let order: ComparisonResult
