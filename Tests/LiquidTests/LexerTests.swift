@@ -22,9 +22,9 @@ class LexerTests: XCTestCase {
         XCTAssertEqual(tag, .tag(value: "b"))
     }
     
-    func testTokenize() {
+    func testTokenize() throws {
         let lexer = Lexer(templateString: "aab {{ a }} cc{%d%}{{ e}}")
-        let tokenize = lexer.tokenize()
+        let tokenize = try lexer.tokenize()
         XCTAssertEqual(tokenize.count, 5)
         XCTAssertEqual(tokenize[0], .text(value: "aab "))
         XCTAssertEqual(tokenize[1], .variable(value: "a"))
@@ -32,16 +32,14 @@ class LexerTests: XCTestCase {
         XCTAssertEqual(tokenize[3], .tag(value: "d"))
         XCTAssertEqual(tokenize[4], .variable(value: "e"))
         
-        let empty = Lexer(templateString: "{{ a").tokenize()
-        XCTAssertEqual(empty.count, 1)
-        XCTAssertEqual(empty[0], .text(value: ""))
+        XCTAssertThrowsError(try Lexer(templateString: "{{ a").tokenize())
         
     }
     
     func testTokenizePerformance() {
         let lexer = Lexer(templateString: "aab {{ a }} cc{%d%}")
         measure {
-            _ = lexer.tokenize()
+            XCTAssertNoThrow(try lexer.tokenize())
         }
     }
 

@@ -17,3 +17,9 @@ public struct TemplateSyntaxError : Error, Equatable, CustomStringConvertible {
         return lhs.description == rhs.description
     }
 }
+
+/// A valid template could not be rendered (for example, division by zero).
+public struct TemplateRenderError: Error, Equatable, CustomStringConvertible {
+    public let description: String
+    public init(_ description: String) { self.description = description }
+}

@@ -1,4 +1,4 @@
-// swift-tools-version:4.0
+// swift-tools-version:6.0
 
 import PackageDescription
 
@@ -14,5 +14,6 @@ let package = Package(
         .testTarget(
             name: "LiquidTests",
             dependencies: ["Liquid"]),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
