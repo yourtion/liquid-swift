@@ -127,7 +127,7 @@ swift test --parallel
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
-CI tests Linux with Swift 6.0 and the latest stable official Swift image, plus macOS with the runner's Xcode toolchain.
+CI tests the core library on Linux with Swift 6.0 and the latest stable official Swift image, plus macOS 26 with the official Swift 6.4.1 toolchain. It also builds the standalone HTTP example and runs its real HTTP smoke checks on Linux (latest Swift) and macOS.
 
 ## Liquid documentation
 
