@@ -1,20 +1,32 @@
 import Foundation
 
+indirect enum LookupPart {
+    case property(String)
+    case bracket(Expression)
+}
+
 indirect enum Expression {
     case literal(Value)
-    case lookup(String, [Expression])
+    case lookup(String)
     case range(Expression, Expression)
     case filter(Expression, String, [Expression])
     case named(String, Expression)
+    case access(Expression, [LookupPart])
 
     func evaluate(_ state: RenderState) throws -> Value {
         switch self {
+        case .access(let base, let path):
+            var value = try base.evaluate(state)
+            for key in path {
+                switch key {
+                case .property(let name): value = value.member(name)
+                case .bracket(let expression): value = value.member(try expression.evaluate(state))
+                }
+            }
+            return value
         case .named(let name, let expression): return .object([name: try expression.evaluate(state)])
         case .literal(let value): return value
-        case .lookup(let root, let path):
-            var value = state.context.value(for: root)
-            for key in path { value = value.member(try key.evaluate(state).text) }
-            return value
+        case .lookup(let root): return state.resolve(root)
         case .range(let first, let last):
             let start = try first.evaluate(state).numeric
             let end = try last.evaluate(state).numeric
@@ -22,16 +34,16 @@ indirect enum Expression {
                   end >= Double(Int.min), end < Double(Int.max) else {
                 throw TemplateRenderError("Range bounds must be finite integers")
             }
-            guard start <= end else { return .array([]) }
+            guard start <= end else { return .range(Int(start), Int(end)) }
             guard end - start < Double(state.iterationLimit) else {
                 throw TemplateRenderError("Range exceeds the iteration limit")
             }
-            return .array((Int(start)...Int(end)).map { .number(Double($0)) })
+            return .range(Int(start), Int(end))
         case .filter(let input, let name, let arguments):
             let value = try input.evaluate(state)
             let args = try arguments.map { try $0.evaluate(state) }
             if let custom = state.filters[name] { return Value(try custom(value.any, args.map(\.any))) }
-            return try BuiltinFilters.apply(name, to: value, arguments: args)
+            return try BuiltinFilters.apply(name, to: value, arguments: args, currentTime: state.currentTime, strict: state.strictFilters)
         }
     }
 }
@@ -58,16 +70,32 @@ indirect enum Condition {
             case "==": return lhs.equals(rhs)
             case "!=": return !lhs.equals(rhs)
             case "contains":
-                if case .string(let text) = lhs, case .string(let needle) = rhs { return text.contains(needle) }
+                if !rhs.truthy || !lhs.truthy { return false }
+                if case .string(let text) = lhs {
+                    let needle = rhs.filterText
+                    return needle.isEmpty || text.contains(needle)
+                }
+                if rhs == .empty || rhs == .blank { return false }
                 if case .array(let values) = lhs { return values.contains { $0.equals(rhs) } }
+                if case .range(let first, let last) = lhs, rhs.isNumeric {
+                    return rhs.numeric >= Double(first) && rhs.numeric <= Double(last)
+                }
                 return false
             default:
                 let order: ComparisonResult
                 if lhs.isNumeric && rhs.isNumeric {
                     let a = lhs.numeric, b = rhs.numeric
+                    guard a.isFinite, b.isFinite else { return false }
                     order = a < b ? .orderedAscending : (a > b ? .orderedDescending : .orderedSame)
                 } else if case .string(let a) = lhs, case .string(let b) = rhs { order = a.compare(b) }
-                else { return false }
+                else if lhs == .null || rhs == .null { return false }
+                else {
+                    switch (lhs, rhs) {
+                    case (.number, .string), (.decimal, .string), (.string, .number), (.string, .decimal):
+                        throw TemplateRenderError("comparison of \(lhs.typeName) with \(rhs.typeName) failed")
+                    default: return false
+                    }
+                }
                 switch op {
                 case ">": return order == .orderedDescending
                 case "<": return order == .orderedAscending
@@ -152,6 +180,7 @@ struct ExpressionParser {
     }
 
     static func expression(_ source: String) throws -> Expression {
+        if source.trimmed.isEmpty { return .literal(.null) }
         var parser = try Self(source)
         let value = try parser.pipeline()
         try parser.requireEnd()
@@ -171,8 +200,11 @@ struct ExpressionParser {
             let name = try identifier()
             var args: [Expression] = []
             if take(.symbol(":")) {
-                args.append(try argument())
-                while take(.symbol(",")) { args.append(try argument()) }
+                if !isAtEnd && current != .symbol("|") { args.append(try argument()) }
+                while take(.symbol(",")) {
+                    if isAtEnd || current == .symbol("|") { break }
+                    args.append(try argument())
+                }
             }
             value = .filter(value, name, args)
         }
@@ -180,28 +212,24 @@ struct ExpressionParser {
     }
 
     mutating func primary() throws -> Expression {
-        let value: Expression
+        var value: Expression
         switch current {
-        case .string(let text): index += 1; return .literal(.string(text))
-        case .number(let number): index += 1; return .literal(.number(number))
-        case .decimal(let number): index += 1; return .literal(.decimal(number))
+        case .string(let text): index += 1; value = .literal(.string(text))
+        case .number(let number): index += 1; value = .literal(.number(number))
+        case .decimal(let number): index += 1; value = .literal(.decimal(number))
         case .word(let name):
             index += 1
-            switch name {
-            case "nil", "null": return .literal(.null)
-            case "true": return .literal(.bool(true))
-            case "false": return .literal(.bool(false))
-            case "empty": return .literal(.empty)
-            case "blank": return .literal(.blank)
-            default: break
-            }
-            var path: [Expression] = []
-            while true {
-                if take(.symbol(".")) { path.append(.literal(.string(try identifier()))) }
-                else if take(.symbol("[")) { path.append(try primary()); try require(.symbol("]")) }
-                else { break }
-            }
-            value = .lookup(name, path)
+            if current == .symbol(".") || current == .symbol("[") { value = .lookup(name) }
+            else { switch name {
+            case "nil", "null": value = .literal(.null)
+            case "true": value = .literal(.bool(true))
+            case "false": value = .literal(.bool(false))
+            case "empty": value = .literal(.empty)
+            case "blank": value = .literal(.blank)
+            default: value = .lookup(name)
+            } }
+        case .symbol("["):
+            throw TemplateSyntaxError("Bare bracket access is not allowed. Use self[...] instead.")
         case .symbol("("):
             index += 1
             let first = try primary()
@@ -211,6 +239,13 @@ struct ExpressionParser {
             value = .range(first, last)
         default: throw TemplateSyntaxError("Expected a Liquid expression")
         }
+        var path: [LookupPart] = []
+        while true {
+            if take(.symbol(".")) { path.append(.property(try identifier())) }
+            else if take(.symbol("[")) { path.append(.bracket(try primary())); try require(.symbol("]")) }
+            else { break }
+        }
+        if !path.isEmpty { value = .access(value, path) }
         return value
     }
 

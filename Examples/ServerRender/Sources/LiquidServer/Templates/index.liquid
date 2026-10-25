@@ -47,7 +47,7 @@
         {% endfor %}
       </select>
     </label>
-    <label class="check"><input type="checkbox" name="empty" value="1"{% if empty %} checked{% endif %}> Show empty collection</label>
+    <label class="check"><input type="checkbox" name="empty" value="1"{% if show_empty %} checked{% endif %}> Show empty collection</label>
     <button type="submit">Update collection →</button>
   </form>
   <div class="summary">

@@ -37,7 +37,7 @@ final class TemplateTests: XCTestCase {
     func testWhitespaceControl() throws {
         XCTAssertEqual(try render("A \n {{- 'B' -}} \t C"), "ABC")
         XCTAssertEqual(try render("A \n {%- assign x = 'B' -%} \n {{ x }}"), "AB")
-        XCTAssertEqual(try render("A {% raw -%}  {{x}}  {%- endraw %} B"), "A {{x}} B")
+        XCTAssertEqual(try render("A {% raw -%}  {{x}}  {%- endraw %} B"), "A   {{x}}   B")
         XCTAssertEqual(try render("A {%- comment -%} ignored {%- endcomment -%} B"), "AB")
         XCTAssertEqual(try render("{{ '' }} {{ ' ' }}"), "  ")
     }
@@ -45,7 +45,7 @@ final class TemplateTests: XCTestCase {
     func testAssignCaptureAndIndependentCounters() throws {
         let source = "{% assign n = 9 %}{% increment n %}{% increment n %}{{ n }}{% decrement d %}{% decrement d %}{% capture title %}Hi {{ name | upcase }}{% endcapture %}{{ title }}"
         XCTAssertEqual(try render(source, ["name": "sam"]), "019-1-2Hi SAM")
-        XCTAssertEqual(try render("{% assign n = 5.0 %}{{ n | divided_by: 2 }}|{{ n | divided_by: 2.0 }}"), "2|2.5")
+        XCTAssertEqual(try render("{% assign n = 5.0 %}{{ n | divided_by: 2 }}|{{ n | divided_by: 2.0 }}"), "2.5|2.5")
         XCTAssertEqual(try render("{% assign xs = (1..3) %}{{ xs | join: ',' }}"), "1,2,3")
     }
 
@@ -124,11 +124,11 @@ final class TemplateTests: XCTestCase {
 
     func testInvalidTemplatesThrowSyntaxErrors() {
         let invalid = [
-            "{{", "{%", "{{ }}", "{{ 'unterminated }}", "{{ a[ }}", "{{ x | }}", "{{ x | append: }}",
+            "{{", "{%", "{{ | }}", "{{ 'unterminated }}", "{{ a[ }}", "{{ x | }}", "{{ x | : }}",
             "{% wat %}", "{% endif %}", "{% if x %}", "{% if %}x{% endif %}",
             "{% if x %}{% endfor %}", "{% if x %}{% else nope %}{% endif %}",
             "{% for x in xs %}", "{% for x xs %}{% endfor %}", "{% for x in xs limit: %}{% endfor %}",
-            "{% for x in xs reversed reversed %}{% endfor %}", "{% break %}", "{% continue %}",
+            "{% for x in xs reversed reversed %}{% endfor %}",
             "{% assign x %}", "{% capture x %}", "{% increment %}", "{% raw %}", "{% comment %}",
             "{% if false %}{% invalid %}{% endif %}", "{% if (true) %}{% endif %}"
         ]
@@ -138,9 +138,10 @@ final class TemplateTests: XCTestCase {
     }
 
     func testRuntimeErrorsAndResourceLimits() throws {
-        for source in ["{{ 1 | unknown }}", "{{ 1 | divided_by: 0 }}", "{{ 2 | modulo: 0 }}", "{{ 'x' | replace: 'y' }}", "{{ 1 | round: 99 }}", "{{ xs | slice: huge }}"] {
+        for source in ["{{ 1 | divided_by: 0 }}", "{{ 2 | modulo: 0 }}", "{{ 'x' | replace }}", "{{ 1 | round: 99 }}", "{{ x | append: }}"] {
             XCTAssertThrowsError(try render(source, ["huge": Double.greatestFiniteMagnitude])) { XCTAssertTrue($0 is TemplateRenderError) }
         }
+        XCTAssertThrowsError(try Template("{{ x | unknown }}", strictFilters: true).render())
         XCTAssertThrowsError(try Template("{% for x in (1..10) %}{{ x }}{% endfor %}", iterationLimit: 3).render())
         XCTAssertThrowsError(try Template("{% for x in xs %}{% for y in xs %}x{% endfor %}{% endfor %}", iterationLimit: 3).render(["xs": [1, 2]]))
         XCTAssertThrowsError(try Template("", iterationLimit: 0))

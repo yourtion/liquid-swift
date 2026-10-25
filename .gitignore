@@ -36,6 +36,7 @@ Carthage/Build
 
 # SwiftPM
 .build/
+.bundle/
 Packages/
 Liquid.xcodeproj/
 docs/

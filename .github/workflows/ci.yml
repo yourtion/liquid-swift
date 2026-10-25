@@ -2,7 +2,12 @@ name: Swift
 
 on:
   push:
+    branches: [master]
   pull_request:
+
+concurrency:
+  group: swift-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -29,6 +34,25 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq python3
           python3 Examples/ServerRender/smoke_test.py
+      - name: Install official compatibility harness dependencies
+        if: matrix.swift == 'latest'
+        run: |
+          apt-get install -y -qq ruby ruby-dev ruby-bundler build-essential
+          gem install bundler --version 2.6.7 --no-document
+          BUNDLE_GEMFILE=Compatibility/Gemfile BUNDLE_PATH=.build/compatibility-gems BUNDLE_FROZEN=true bundle install
+      - name: Run official Liquid compatibility regression gate
+        if: matrix.swift == 'latest'
+        env:
+          BUNDLE_PATH: .build/compatibility-gems
+          BUNDLE_FROZEN: 'true'
+        run: bash Compatibility/run.sh
+      - name: Upload official compatibility results
+        if: always() && matrix.swift == 'latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: liquid-spec-linux
+          path: .build/compatibility/results.json
+          if-no-files-found: ignore
 
   macos:
     runs-on: macos-26
@@ -52,3 +76,27 @@ jobs:
         run: swift build --package-path Examples/ServerRender
       - name: Smoke test real HTTP responses
         run: python3 Examples/ServerRender/smoke_test.py
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler: '2.6.7'
+      - name: Install official compatibility harness dependencies
+        run: |
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          export PATH="$(dirname "$(xcrun --find clang)"):$PATH"
+          if ! BUNDLE_GEMFILE=Compatibility/Gemfile BUNDLE_PATH=.build/compatibility-gems BUNDLE_FROZEN=true bundle install; then
+            find Compatibility/.build/compatibility-gems -name mkmf.log -exec tail -n 80 {} \;
+            exit 1
+          fi
+      - name: Run official Liquid compatibility regression gate
+        env:
+          BUNDLE_PATH: .build/compatibility-gems
+          BUNDLE_FROZEN: 'true'
+        run: bash Compatibility/run.sh
+      - name: Upload official compatibility results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: liquid-spec-macos
+          path: .build/compatibility/results.json
+          if-no-files-found: ignore

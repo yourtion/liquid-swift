@@ -1,0 +1,58 @@
+{
+  "upstream": "https://github.com/Shopify/liquid-spec",
+  "revision": "84bf25e0edbca5f7e530574788b0f875ab331f50",
+  "suites": [
+    "basics",
+    "liquid_ruby",
+    "partials",
+    "parser_errors"
+  ],
+  "toolchain_for_measurement": "Swift 6.4.1 / Linux x86_64",
+  "tracked_specs": 4304,
+  "unique_spec_names": 4297,
+  "passed": 2391,
+  "known_failures": 1913,
+  "passing_ids_sha256": "e0a10a2d0bef3e795dd89cd86d2a6b55644fafb1516256bf8961681d8c4d9b52",
+  "baseline": {
+    "commit": "9f9fe7b",
+    "passed": 1532,
+    "failed_or_error": 2772
+  },
+  "newly_passing_since_baseline": 859,
+  "regressions_since_baseline": 0,
+  "breakdown": {
+    "other_selected_specs": {
+      "passed": 2379,
+      "known_failures": 20
+    },
+    "parser_errors": {
+      "passed": 12,
+      "known_failures": 1893
+    }
+  },
+  "parser_error_specs_accepted_without_error": 46,
+  "complexity_level_cleared": 139,
+  "missing_features": [
+    "drops",
+    "ruby_drops",
+    "ruby_types",
+    "drop_class_output",
+    "binary_data",
+    "template_factory",
+    "shopify_tags",
+    "shopify_objects",
+    "shopify_filters",
+    "shopify_includes",
+    "shopify_blank",
+    "shopify_error_handling",
+    "shopify_error_format",
+    "shopify_string_access",
+    "shopify_resource_limits",
+    "range_resource_limits",
+    "strict2_blank_body_errors",
+    "randomness",
+    "strict_parsing",
+    "lax_parsing",
+    "inline_errors"
+  ]
+}

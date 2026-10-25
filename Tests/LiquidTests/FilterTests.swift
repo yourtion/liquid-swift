@@ -84,10 +84,10 @@ final class FilterTests: XCTestCase {
         try check("false | default: true, allow_false: false", "true")
     }
 
-    func testDateFilterUsesUTC() throws {
+    func testDateFilterFormattingAndOffsets() throws {
         try check("'2024-02-29' | date: '%Y/%m/%d %A'", "2024/02/29 Thursday")
         try check("0 | date: '%F %T %z'", "1970-01-01 00:00:00 +0000")
-        try check("'2024-01-01T02:30:00+02:00' | date: '%H:%M'", "00:30")
+        try check("'2024-01-01T02:30:00+02:00' | date: '%H:%M'", "02:30")
         try check("'not a date' | date: '%Y'", "not a date")
     }
 }

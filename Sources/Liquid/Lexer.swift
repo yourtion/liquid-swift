@@ -32,6 +32,23 @@ struct Lexer {
             }
         }
 
+        func appendLiquid(_ markup: String) throws {
+            var ignored: [String] = []
+            for line in markup.components(separatedBy: .newlines) where !line.trimmed.isEmpty {
+                let value = line.trimmed
+                let (name, arguments) = SyntaxParser.tag(value)
+                if let top = ignored.last {
+                    if name == "end" + top { ignored.removeLast() }
+                    else if top != "raw" && ["comment", "doc", "raw"].contains(name) { ignored.append(name) }
+                    continue
+                }
+                if name == "comment" || name == "doc" { ignored.append(name) }
+                else if name == "liquid" { try appendLiquid(arguments) }
+                else { tokens.append(.tag(value: value)) }
+            }
+            if let name = ignored.last { throw TemplateSyntaxError("Missing end\(name)") }
+        }
+
         while position < source.endIndex {
             let variable = source.range(of: "{{", range: position..<source.endIndex)
             let tag = source.range(of: "{%", range: position..<source.endIndex)
@@ -44,10 +61,23 @@ struct Lexer {
             let closing = isVariable ? "}}" : "%}"
             var cursor = start.upperBound
             var quote: Character?
+            let header = source[start.upperBound...].drop(while: { $0.isWhitespace || $0 == "-" })
+            let inlineComment = !isVariable && header.hasPrefix("#")
+            let liquidTag = !isVariable && header.hasPrefix("liquid")
+            var commentLine = inlineComment
+            var lineStart = false
             var end: Range<String.Index>?
             while cursor < source.endIndex {
                 let character = source[cursor]
-                if let current = quote {
+                if character == "\n" { commentLine = inlineComment; lineStart = true }
+                else if liquidTag && lineStart && !character.isWhitespace {
+                    commentLine = character == "#"; lineStart = false
+                }
+                if commentLine {
+                    if source[cursor...].hasPrefix(closing) {
+                        end = cursor..<source.index(cursor, offsetBy: 2); break
+                    }
+                } else if let current = quote {
                     if character == current { quote = nil }
                 } else if source[cursor...].hasPrefix(closing) {
                     end = cursor..<source.index(cursor, offsetBy: 2)
@@ -63,19 +93,36 @@ struct Lexer {
             position = end.upperBound
 
             // These bodies may contain arbitrary, even malformed, Liquid markup.
-            if case .tag(let name) = token, name == "raw" || name == "comment" {
-                let pattern = #"\{%-?\s*end"# + name + #"\s*-?%\}"#
+            if case .tag(let body) = token, ["raw", "comment", "doc"].contains(SyntaxParser.tag(body).0) {
+                let name = SyntaxParser.tag(body).0
+                let pattern: String
+                if name == "raw" { pattern = #"\{%-?\s*(endraw)\s*-?%\}"# }
+                else if name == "doc" { pattern = #"\{%-?\s*(enddoc)\b[^%{]*?%\}"# }
+                else { pattern = #"\{%-?\s*(\w+|#)?[\s\S]*?%\}"# }
                 let regex = try NSRegularExpression(pattern: pattern)
                 let search = NSRange(position..<source.endIndex, in: source)
-                guard let match = regex.firstMatch(in: source, range: search),
-                      let closingRange = Range(match.range, in: source) else {
-                    throw TemplateSyntaxError("Missing end\(name)")
+                var stack = [name]
+                var closing: Range<String.Index>?
+                for match in regex.matches(in: source, range: search) {
+                    guard let wordRange = Range(match.range(at: 1), in: source), let range = Range(match.range, in: source) else { continue }
+                    let word = String(source[wordRange])
+                    if word == "end" + (stack.last ?? "") {
+                        stack.removeLast()
+                        if stack.isEmpty { closing = range; break }
+                    } else if stack.last == "comment" && ["raw", "comment", "doc"].contains(word) { stack.append(word) }
                 }
-                if name == "raw" { appendText(String(source[position..<closingRange.lowerBound])) }
+                guard let closingRange = closing else { throw TemplateSyntaxError("Missing end\(name)") }
+                trimNext = false
+                if name == "raw" {
+                    tokens.append(.tag(value: "raw"))
+                    appendText(String(source[position..<closingRange.lowerBound]))
+                    tokens.append(.tag(value: "endraw"))
+                } else { tokens.append(.tag(value: "#")) }
                 let closingMarkup = String(source[closingRange])
-                if closingMarkup.hasPrefix("{%-") { trimPrevious() }
                 trimNext = closingMarkup.hasSuffix("-%}")
                 position = closingRange.upperBound
+            } else if case .tag(let markup) = token, SyntaxParser.tag(markup).0 == "liquid" {
+                try appendLiquid(SyntaxParser.tag(markup).1)
             } else { tokens.append(token) }
         }
         return tokens

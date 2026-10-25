@@ -26,7 +26,7 @@ private actor PageRenderer {
         return try template.render([
             "name": String(name.prefix(200)),
             "category": category,
-            "empty": empty,
+            "show_empty": empty,
             "products": selected,
             "categories": ["all", "tea", "home"],
         ])
