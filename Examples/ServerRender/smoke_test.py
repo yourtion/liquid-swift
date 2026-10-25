@@ -51,6 +51,7 @@ def main():
             assert headers["Cache-Control"] == "no-store"
             assert "Hello, Swift friend." in html
             assert html.count('data-product="') == 3
+            assert 'name="empty" value="1" checked' not in html
             assert "Sold out" in html and "Jasmine Tea" in html
 
             _, html = get("/?category=tea&name=Ada")
@@ -59,6 +60,7 @@ def main():
             assert "Ceramic Cup" not in html
             _, html = get("/?empty=1")
             assert "No products in this collection." in html
+            assert 'name="empty" value="1" checked' in html
             assert 'data-product="' not in html
 
             attack = '<script>alert("hello")</script>'
