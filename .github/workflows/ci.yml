@@ -16,15 +16,33 @@ jobs:
         swift: ['6.0', 'latest']
     container: swift:${{ matrix.swift }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: swift --version
       - run: swift test --parallel
       - run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Build server-rendered example
+        if: matrix.swift == 'latest'
+        run: swift build --package-path Examples/ServerRender
+      - name: Smoke test real HTTP responses
+        if: matrix.swift == 'latest'
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3
+          python3 Examples/ServerRender/smoke_test.py
 
   macos:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: swift --version
       - run: swift test --parallel
       - run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Install Swift for the Hummingbird example
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.4.1'
+      - run: swift --version
+      - name: Build server-rendered example
+        run: swift build --package-path Examples/ServerRender
+      - name: Smoke test real HTTP responses
+        run: python3 Examples/ServerRender/smoke_test.py

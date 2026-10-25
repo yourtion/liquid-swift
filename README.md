@@ -87,7 +87,34 @@ Invalid delimiters, expressions, tags or nesting throw `TemplateSyntaxError` dur
 
 The default limit is 100,000 total loop iterations per render and 100,000 entries per range. Configure it with `try Template(source, iterationLimit: 10_000)`. Template nesting is limited to 128 parse levels. These limits are safeguards for loops and ranges, not a complete sandbox or an output size limit.
 
-This implements the features above, not every Shopify Liquid extension. File loading (`include`, `render`), inheritance, `cycle`, `tablerow`, Shopify-specific objects/filters, and arbitrary Swift object reflection are not implemented. `strip_html` removes tags; it is not an HTML sanitizer.
+### Liquid compatibility
+
+**This is a partial Liquid implementation, not a fully conformant replacement for Shopify's reference engine.** The original project checklist is implemented; the official Liquid compatibility suite has not been run. Passing the tests below verifies the supported features, not every valid Liquid template.
+
+| Area | Current coverage / remaining gaps |
+| --- | --- |
+| Output, variables, conditions, loops | Features listed above are implemented and tested, including nested blocks. |
+| Standard tags | `include`, `render`, `cycle`, `tablerow`, `ifchanged`, `echo`, `liquid`, inline `#` comments and `doc` are not implemented. Unknown tags throw. |
+| Standard filters | The table above lists every built-in. Missing filters include `sum`, `find`, `find_index`, `has`, `reject`, `squish` and the Base64 family. Unknown filters throw. |
+| Filter signatures | Some optional forms still differ: `uniq: 'property'`, argument-free `default`, and omitted replacement arguments for `replace` / `replace_first` are not supported. |
+| Values and formatting | Numeric storage uses `Double`; `date` supports the documented directives in UTC. Dictionary iteration is explicitly sorted. These can differ from the Ruby reference engine. |
+| Host integration | No filesystem template loader, Liquid Drops, arbitrary Swift object reflection or Shopify-specific commerce objects/filters. |
+
+Reference: [official Liquid tags](https://github.com/Shopify/liquid/tree/main/lib/liquid/tags) and [standard filters](https://github.com/Shopify/liquid/blob/main/lib/liquid/standardfilters.rb). `strip_html` removes tags; it is not an HTML sanitizer.
+
+## Server-rendered example
+
+[Examples/ServerRender](Examples/ServerRender) is an independent Hummingbird HTTP application with a bundled Liquid template. It demonstrates query parameters, filtered product lists, empty states, conditions, HTML escaping and request isolation. The core Liquid package remains dependency-free.
+
+The example requires **Swift 6.4+** and **Linux or macOS 14+**, using Hummingbird 2.28.0 with locked dependencies. The core library still requires only Swift 6.0+.
+
+```sh
+swift run --package-path Examples/ServerRender LiquidServer
+# Open http://127.0.0.1:8080/
+# Try /?name=Ada&category=tea or /?empty=1
+```
+
+Override `HOST` / `PORT` if needed. See the [example README](Examples/ServerRender/README.md) for architecture and HTTP smoke checks.
 
 ## Migrating from the Swift 4 prototype
 
