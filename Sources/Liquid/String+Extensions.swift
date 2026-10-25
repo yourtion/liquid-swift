@@ -1,79 +1,41 @@
-//
-//  Extensions.swift
-//  Liquid
-//
-//  Created by YourtionGuo on 29/06/2017.
-//
-//
-extension String {
-    func findFirstNot(character: Character) -> String.Index? {
-        var index = startIndex
-        
-        while index != endIndex {
-            if character != self[index] {
-                return index
-            }
-            index = self.index(after: index)
-        }
-        
-        return nil
-    }
-    
-    func findLastNot(character: Character) -> String.Index? {
-        var index = self.index(before: endIndex)
-        
-        while index != startIndex {
-            if character != self[index] {
-                return self.index(after: index)
-            }
-            index = self.index(before: index)
-        }
-        
-        return nil
-    }
-    
-    func trim(character: Character) -> String {
-        let first = findFirstNot(character: character) ?? startIndex
-        let last = findLastNot(character: character) ?? endIndex
-      return String(self[first..<last])
-    }
-}
+import Foundation
 
 extension String {
-    /// Split a string by a separator leaving quoted phrases together
+    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    func trim(character: Character) -> String {
+        String(drop(while: { $0 == character }).reversed().drop(while: { $0 == character }).reversed())
+    }
+
+    /// Splits only outside quotes, bracket lookups and ranges.
+    func splitOutside(_ separator: Character, omittingEmpty: Bool = false) -> [String] {
+        var parts: [String] = []
+        var part = ""
+        var quote: Character?
+        var depth = 0
+        for character in self {
+            if let current = quote {
+                part.append(character)
+                if character == current { quote = nil }
+            } else if character == "'" || character == "\"" {
+                quote = character
+                part.append(character)
+            } else if character == "[" || character == "(" {
+                depth += 1
+                part.append(character)
+            } else if character == "]" || character == ")" {
+                depth -= 1
+                part.append(character)
+            } else if character == separator && depth == 0 {
+                if !omittingEmpty || !part.isEmpty { parts.append(part) }
+                part = ""
+            } else { part.append(character) }
+        }
+        if !omittingEmpty || !part.isEmpty { parts.append(part) }
+        return parts
+    }
+
     func smartSplit(separator: Character = " ") -> [String] {
-        var word = ""
-        var components: [String] = []
-        var separate: Character = separator
-        var singleQuoteCount = 0
-        var doubleQuoteCount = 0
-        
-        for character in self.characters {
-            if character == "'" { singleQuoteCount += 1 }
-            else if character == "\"" { doubleQuoteCount += 1 }
-            
-            if character == separate {
-                
-                if separate != separator {
-                    word.append(separate)
-                } else if singleQuoteCount % 2 == 0 && doubleQuoteCount % 2 == 0 && !word.isEmpty {
-                    components.append(word)
-                    word = ""
-                }
-                
-                separate = separator
-            } else {
-                if separate == separator && (character == "'" || character == "\"") {
-                    separate = character
-                }
-                word.append(character)
-            }
-        }
-        
-        if !word.isEmpty {
-            components.append(word)
-        }
-        
-        return components
+        splitOutside(separator, omittingEmpty: true)
     }
 }

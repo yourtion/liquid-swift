@@ -1,0 +1,54 @@
+name: Swift
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ['6.0', 'latest']
+    container: swift:${{ matrix.swift }}
+    steps:
+      - uses: actions/checkout@v6
+      - run: swift --version
+      - run: swift test --parallel
+      - run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Build server-rendered example
+        if: matrix.swift == 'latest'
+        run: swift build --package-path Examples/ServerRender
+      - name: Smoke test real HTTP responses
+        if: matrix.swift == 'latest'
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3
+          python3 Examples/ServerRender/smoke_test.py
+
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the official Swift 6.4.1 toolchain
+        run: |
+          swift_pkg="$RUNNER_TEMP/swift-6.4.1.pkg"
+          curl --fail --location --retry 3 \
+            https://download.swift.org/swift-6.4.1-release/xcode/swift-6.4.1-RELEASE/swift-6.4.1-RELEASE-osx.pkg \
+            --output "$swift_pkg"
+          pkgutil --check-signature "$swift_pkg"
+          sudo installer -pkg "$swift_pkg" -target /
+          swift_bin=/Library/Developer/Toolchains/swift-6.4.1-RELEASE.xctoolchain/usr/bin
+          test -x "$swift_bin/swift"
+          echo "$swift_bin" >> "$GITHUB_PATH"
+      - run: swift --version
+      - run: swift test --parallel
+      - run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Build server-rendered example
+        run: swift build --package-path Examples/ServerRender
+      - name: Smoke test real HTTP responses
+        run: python3 Examples/ServerRender/smoke_test.py

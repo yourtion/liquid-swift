@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liquid Swift · Server rendering</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.6 system-ui, sans-serif; color: #183b36; background: #f3f5ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1040px; margin: auto; padding: 64px 24px; }
+    .eyebrow { color: #527165; letter-spacing: .15em; text-transform: uppercase; font-size: .75rem; font-weight: 700; }
+    h1 { font-size: clamp(2.5rem, 6vw, 4.8rem); line-height: 1.1; letter-spacing: -.05em; margin: 20px 0; overflow-wrap: anywhere; }
+    .intro { color: #527165; max-width: 620px; }
+    form { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 36px 0; padding: 24px; background: white; border: 1px solid #d8e1d6; border-radius: 16px; }
+    label { display: grid; gap: 6px; font-size: .85rem; }
+    input, select, button { font: inherit; border-radius: 8px; padding: 10px 14px; border: 1px solid #bdcdbd; max-width: 100%; }
+    input[type=checkbox] { accent-color: #28664e; }
+    .check { display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+    button { background: #245c46; color: white; cursor: pointer; }
+    .summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .summary span { color: #527165; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 20px; padding: 0; list-style: none; }
+    .card { background: #fff; border: 1px solid #d8e1d6; border-radius: 16px; padding: 24px; }
+    .symbol { font-size: 3rem; background: #eaf0e5; border-radius: 10px; text-align: center; padding: 22px; }
+    .card h3 { margin: 20px 0 4px; }
+    .price { font-size: 1.6rem; margin: 0 0 12px; }
+    .badge { font-size: .8rem; color: #28664e; background: #eaf3e5; padding: 4px 10px; border-radius: 99px; }
+    .sold { color: #885442; background: #f7eee7; }
+    .empty { text-align: center; padding: 48px; border: 1px dashed #bdcdbd; border-radius: 16px; }
+    footer { border-top: 1px solid #d8e1d6; margin-top: 48px; padding-top: 20px; color: #527165; font-size: .85rem; }
+    a { color: #245c46; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Liquid Swift / A small server-rendered shop</p>
+  {% assign visitor = name | default: 'Swift friend' %}
+  <h1>Hello, {{ visitor | escape }}.</h1>
+  <p class="intro">A few everyday essentials. Change your name or filter the collection to see a fresh page rendered on the server.</p>
+  <form method="get" action="/">
+    <label>Your name <input name="name" value="{{ visitor | escape }}" maxlength="200"></label>
+    <label>Collection
+      <select name="category">
+        {% for option in categories %}
+        <option value="{{ option | escape }}"{% if option == category %} selected{% endif %}>{{ option | capitalize | escape }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" name="empty" value="1"{% if empty %} checked{% endif %}> Show empty collection</label>
+    <button type="submit">Update collection →</button>
+  </form>
+  <div class="summary">
+    <h2>{% case category %}{% when 'tea' %}Tea time{% when 'home' %}At home{% else %}The collection{% endcase %}</h2>
+    <span>{{ products | size }} items</span>
+  </div>
+  <ul class="grid">
+    {% for product in products %}
+    <li class="card" data-product="{{ forloop.index }}">
+      <div class="symbol" aria-hidden="true">{{ product.symbol | escape }}</div>
+      <h3>{{ product.name | escape }}</h3>
+      <p class="price">${{ product.price }}</p>
+      {% if product.stock > 0 %}
+      <span class="badge">{{ product.stock }} available</span>
+      {% else %}
+      <span class="badge sold">Sold out</span>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="empty">No products in this collection. <a href="/?name={{ visitor | url_encode }}">View all products</a></li>
+    {% endfor %}
+  </ul>
+  <footer>Rendered by Liquid Swift. HTML is generated on the server; this page works without JavaScript.</footer>
+</main>
+</body>
+</html>

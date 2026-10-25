@@ -1,125 +1,83 @@
-//
-//  Lexer.swift
-//  Liquid
-//
-//  Created by YourtionGuo on 28/06/2017.
-//
-//
-
 import Foundation
 
 struct Lexer {
     let templateString: String
-    
-    init(templateString: String) {
-        self.templateString = templateString
-    }
-    
+
     func createToken(string: String) -> Token {
-        func strip() -> String {
-            let start = string.index(string.startIndex, offsetBy: 2)
-            let end = string.index(string.endIndex, offsetBy: -2)
-          return String(string[start..<end]).trim(character: " ")
+        guard string.count >= 4, string.hasPrefix("{{") || string.hasPrefix("{%") else {
+            return .text(value: string)
         }
-        
-        if string.hasPrefix("{{") {
-            return .variable(value: strip())
-        } else if string.hasPrefix("{%") {
-            return .tag(value: strip())
-        }
-        
-        return .text(value: string)
+        var body = String(string.dropFirst(2).dropLast(2))
+        if body.hasPrefix("-") { body.removeFirst() }
+        if body.hasSuffix("-") { body.removeLast() }
+        return string.hasPrefix("{{") ? .variable(value: body.trimmed) : .tag(value: body.trimmed)
     }
-    
-    /// Returns an array of tokens from a given template string.
-    func tokenize() -> [Token] {
+
+    func tokenize() throws -> [Token] {
+        let source = templateString
+        var position = source.startIndex
         var tokens: [Token] = []
-        
-        let scanner = Scanner(templateString)
-        
-        let map = [
-            "{{": "}}",
-            "{%": "%}",
-            ]
-        
-        while !scanner.isEmpty {
-            if let text = scanner.scan(until: ["{{", "{%"]) {
-                if !text.1.isEmpty {
-                    tokens.append(createToken(string: text.1))
-                }
-                
-                let end = map[text.0]!
-                let result = scanner.scan(until: end, returnUntil: true)
-                tokens.append(createToken(string: result))
-            } else {
-                tokens.append(createToken(string: scanner.content))
-                scanner.content = ""
+        var trimNext = false
+
+        func appendText(_ text: String) {
+            let value = trimNext ? String(text.drop(while: \.isWhitespace)) : text
+            trimNext = false
+            if !value.isEmpty { tokens.append(.text(value: value)) }
+        }
+        func trimPrevious() {
+            if case .text(let value) = tokens.last {
+                tokens.removeLast()
+                let trimmed = String(value.reversed().drop(while: \.isWhitespace).reversed())
+                if !trimmed.isEmpty { tokens.append(.text(value: trimmed)) }
             }
         }
-        
+
+        while position < source.endIndex {
+            let variable = source.range(of: "{{", range: position..<source.endIndex)
+            let tag = source.range(of: "{%", range: position..<source.endIndex)
+            guard let start = [variable, tag].compactMap({ $0 }).min(by: { $0.lowerBound < $1.lowerBound }) else {
+                appendText(String(source[position...]))
+                break
+            }
+            appendText(String(source[position..<start.lowerBound]))
+            let isVariable = source[start] == "{{"
+            let closing = isVariable ? "}}" : "%}"
+            var cursor = start.upperBound
+            var quote: Character?
+            var end: Range<String.Index>?
+            while cursor < source.endIndex {
+                let character = source[cursor]
+                if let current = quote {
+                    if character == current { quote = nil }
+                } else if source[cursor...].hasPrefix(closing) {
+                    end = cursor..<source.index(cursor, offsetBy: 2)
+                    break
+                } else if character == "'" || character == "\"" { quote = character }
+                cursor = source.index(after: cursor)
+            }
+            guard let end else { throw TemplateSyntaxError("Unclosed \(isVariable ? "output" : "tag") delimiter") }
+            let markup = String(source[start.lowerBound..<end.upperBound])
+            if markup.hasPrefix(isVariable ? "{{-" : "{%-") { trimPrevious() }
+            trimNext = markup.hasSuffix(isVariable ? "-}}" : "-%}")
+            let token = createToken(string: markup)
+            position = end.upperBound
+
+            // These bodies may contain arbitrary, even malformed, Liquid markup.
+            if case .tag(let name) = token, name == "raw" || name == "comment" {
+                let pattern = #"\{%-?\s*end"# + name + #"\s*-?%\}"#
+                let regex = try NSRegularExpression(pattern: pattern)
+                let search = NSRange(position..<source.endIndex, in: source)
+                guard let match = regex.firstMatch(in: source, range: search),
+                      let closingRange = Range(match.range, in: source) else {
+                    throw TemplateSyntaxError("Missing end\(name)")
+                }
+                if name == "raw" { appendText(String(source[position..<closingRange.lowerBound])) }
+                let closingMarkup = String(source[closingRange])
+                if closingMarkup.hasPrefix("{%-") { trimPrevious() }
+                trimNext = closingMarkup.hasSuffix("-%}")
+                position = closingRange.upperBound
+            } else { tokens.append(token) }
+        }
         return tokens
-    }
-}
-
-
-class Scanner {
-    var content: String
-    
-    init(_ content: String) {
-        self.content = content
-    }
-    
-    var isEmpty: Bool {
-        return content.isEmpty
-    }
-    
-    func scan(until: String, returnUntil: Bool = false) -> String {
-        if until.isEmpty {
-            return ""
-        }
-        
-        var index = content.startIndex
-        while index != content.endIndex {
-            let substring = String(content[index...])
-            
-            if substring.hasPrefix(until) {
-                let result = String(content[..<index])
-                content = substring
-                
-                if returnUntil {
-                    content = String(content[until.endIndex...])
-                    return result + until
-                }
-                
-                return result
-            }
-            
-            index = content.index(after: index)
-        }
-        
-        content = ""
-        return ""
-    }
-    
-    func scan(until: [String]) -> (String, String)? {
-        if until.isEmpty {
-            return nil
-        }
-        
-        var index = content.startIndex
-        while index != content.endIndex {
-            let substring = String(content[index...])
-            for string in until {
-                if substring.hasPrefix(string) {
-                    let result = String(content[..<index])
-                    content = substring
-                    return (string, result)
-                }
-            }
-            
-            index = content.index(after: index)
-        }
-        
-        return nil
     }
 }
