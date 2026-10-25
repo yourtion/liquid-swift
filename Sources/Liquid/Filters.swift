@@ -187,7 +187,11 @@ enum BuiltinFilters {
             if percent {
                 if character == "%" { output.append("%") }
                 else if character == "s" { output += String(format: "%.0f", date.timeIntervalSince1970.rounded(.down)) }
-                else if let pattern = formats[character] { formatter.dateFormat = pattern; output += formatter.string(from: date) }
+                else if let pattern = formats[character] {
+                    formatter.dateFormat = pattern
+                    let value = formatter.string(from: date)
+                    output += character == "e" && value.count == 1 ? " " + value : value
+                }
                 else { output += "%" + String(character) }
                 percent = false
             } else if character == "%" { percent = true }

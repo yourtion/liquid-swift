@@ -112,6 +112,14 @@ indirect enum Value: Equatable {
         if self == .blank { return other.isBlank }
         if other == .blank { return isBlank }
         if isNumeric && other.isNumeric { return numeric == other.numeric }
+        if case .array(let lhs) = self, case .array(let rhs) = other {
+            return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.equals($1) }
+        }
+        if case .object(let lhs) = self, case .object(let rhs) = other {
+            return lhs.count == rhs.count && lhs.allSatisfy { key, value in
+                rhs[key].map { value.equals($0) } ?? false
+            }
+        }
         return self == other
     }
 

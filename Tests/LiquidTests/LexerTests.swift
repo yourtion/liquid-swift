@@ -10,6 +10,14 @@ import XCTest
 @testable import Liquid
 
 class LexerTests: XCTestCase {
+    func testEmptyAndUnicodeStrings() throws {
+        XCTAssertEqual("".trim(character: " "), "")
+        XCTAssertEqual("   ".trim(character: " "), "")
+        XCTAssertEqual(" a ".trim(character: " "), "a")
+        XCTAssertEqual("  🦉你好  ".trim(character: " "), "🦉你好")
+        XCTAssertEqual(try Lexer(templateString: "").tokenize(), [])
+        XCTAssertEqual("a 'b c' \"d e\"".smartSplit(), ["a", "'b c'", "\"d e\""])
+    }
     
     func testCreateToken() {
         let lexer = Lexer(templateString: "")
@@ -39,7 +47,8 @@ class LexerTests: XCTestCase {
     func testTokenizePerformance() {
         let lexer = Lexer(templateString: "aab {{ a }} cc{%d%}")
         measure {
-            XCTAssertNoThrow(try lexer.tokenize())
+            do { _ = try lexer.tokenize() }
+            catch { XCTFail("Tokenization failed: \(error)") }
         }
     }
 

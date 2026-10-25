@@ -63,7 +63,8 @@ final class TemplateTests: XCTestCase {
     func testConditionsAndRightToLeftLogic() throws {
         XCTAssertEqual(try render("{% if n > 5 %}a{% elsif n >= 3 %}b{% else %}c{% endif %}", ["n": 3]), "b")
         XCTAssertEqual(try render("{% unless user %}guest{% else %}user{% endunless %}"), "guest")
-        XCTAssertEqual(try render("{% if true or false and false %}wrong{% else %}right{% endif %}"), "right")
+        XCTAssertEqual(try render("{% if false and true or true %}wrong{% else %}right{% endif %}"), "right")
+        XCTAssertEqual(try render("{% if true or false and false %}right{% else %}wrong{% endif %}"), "right")
         XCTAssertEqual(try render("{% if 2 == 2.0 and '2' != 2 and 2 <= 2 and 1 < 2 %}yes{% endif %}"), "yes")
         XCTAssertEqual(try render("{% if title contains 'Swift' and tags contains 'a' %}yes{% endif %}", ["title": "Swift Liquid", "tags": ["a", "b"]]), "yes")
         XCTAssertEqual(try render("{% if true %}{% unless false %}nested{% endunless %}{% endif %}"), "nested")

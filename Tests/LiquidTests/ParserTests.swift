@@ -10,6 +10,13 @@ import XCTest
 @testable import Liquid
 
 class ParserTests: XCTestCase {
+    func testParseUntilAndCompileFilter() throws {
+        let parser = TokenParser(tokens: [.text(value: "a"), .tag(value: "stop"), .variable(value: "missing")], context: Context())
+        XCTAssertEqual(try parser.parse { _, token in token == .tag(value: "stop") }, ["a"])
+        XCTAssertEqual(try parser.parse(), [""])
+        XCTAssertEqual(try parser.compileFilter("'hi' | upcase"), "HI")
+        XCTAssertNil(parser.nextToken())
+    }
     
     func testParseText() throws {
         let lexer = Lexer(templateString: "aab  cc dd")
@@ -34,7 +41,8 @@ class ParserTests: XCTestCase {
         let tokenize = try lexer.tokenize()
         measure {
             let parser = TokenParser(tokens: tokenize, context: Context(dictionary: dic))
-            XCTAssertNoThrow(try parser.parse())
+            do { _ = try parser.parse() }
+            catch { XCTFail("Parsing failed: \(error)") }
         }
     }
     
